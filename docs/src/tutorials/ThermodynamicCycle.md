@@ -367,3 +367,53 @@ q1 = sol[combustion_chamber.Δh][1]
 w = -sol[gas_turbine.Δh][1] - sol[compressor.Δh][1]
 η = w / q1
 ```
+
+## Example 7:  Ideal refrigeration cycle 
+
+In this example, the modeling method is the same as the examples above.It should be mentioned that the working medium used in this ideal refrigeration cycle is R134a.
+
+Parameters of Refrigeration Cycle:
+
+* Pressure of compressor outlet : 1016.3kPa
+* State of R134a at condenser outlet: Saturated liquid
+* Entropic of throttle outlet : 1.242 kJ/(kg.K)
+* State of R134a at evaporator outlet: Saturated vapor
+
+```@example 7
+using ModelingToolkit, DifferentialEquations
+using Ai4EComponentLib, Ai4EComponentLib.ThermodynamicCycle
+using CoolProp
+
+system = []
+@named compressor = IsentropicProcess(inter_state="P", fluid="R134a")
+@named compressor_P = ThermalStates(state="P", value=1.0163e6)
+push!(system, compressor, compressor_P)
+
+@named condenser = IsobaricProcess(inter_state="Q_0", fluid="R134a")
+push!(system, condenser)
+
+@named throttle = IsoenthalpyProcess(inter_state="S", fluid="R134a")
+@named throttle_T = ThermalStates(state="S", value=1.242e3)
+push!(system, throttle, throttle_T)
+
+@named evaporator = IsobaricProcess(inter_state="Q_1", fluid="R134a")
+push!(system, evaporator)
+
+eqs = [
+    connect(compressor.out, condenser.in, compressor_P.node)
+    connect(condenser.out, throttle.in)
+    connect(throttle.out, evaporator.in, throttle_T.node)
+    connect(evaporator.out, compressor.in)
+]
+
+@named model = ODESystem(eqs, t, systems=system)
+
+sys = structural_simplify(model)
+
+prob = ODAEProblem(sys, [], (0, 0))
+sol = solve(prob)
+
+w = sol[compressor.Δh][1]
+ql = sol[evaporator.Δh][1]
+ε = ql / w   #制冷系数
+```
